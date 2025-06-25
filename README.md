@@ -146,3 +146,19 @@ pytest tests/ -v --cov=app
 ---
 
 **개발 문의**: [Issues](https://github.com/jibongPark/vibeCoding-2-2/issues)를 통해 문의해주세요! 
+
+## 🧪 PR 테스트 섹션
+
+이 섹션은 Pull Request 자동화 테스트를 위해 추가되었습니다.
+
+### 테스트 내용
+- GitHub Actions PR 자동 댓글 테스트
+- PR 자동 할당 테스트  
+- PR 라벨링 테스트
+- 자동 코드 리뷰 테스트
+
+### 변경 내용
+- 2025-01-13: PR 테스트 섹션 추가 ✨
+- 자동화 워크플로우 동작 확인
+
+*이 변경사항은 pr_test 브랜치에서 작성되었습니다.* 
