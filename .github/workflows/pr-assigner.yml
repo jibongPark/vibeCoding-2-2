@@ -1,0 +1,53 @@
+name: PR Auto Assigner
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+    - name: Auto Assign PR
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const prNumber = context.payload.pull_request.number;
+          const author = context.payload.pull_request.user.login;
+          
+          // PR 작성자를 기본 할당자로 설정
+          let assignees = [author];
+          
+          // 팀 멤버 목록 (필요시 수정)
+          const teamMembers = [
+            // 'team-member-1',
+            // 'team-member-2',
+            // 'team-member-3'
+          ];
+          
+          // 작성자가 아닌 팀 멤버 중 랜덤 선택 (옵션)
+          const availableReviewers = teamMembers.filter(member => member !== author);
+          if (availableReviewers.length > 0) {
+            const randomReviewer = availableReviewers[Math.floor(Math.random() * availableReviewers.length)];
+            assignees.push(randomReviewer);
+          }
+          
+          // 중복 제거
+          assignees = [...new Set(assignees)];
+          
+          try {
+            await github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              assignees: assignees
+            });
+            
+            console.log(`PR #${prNumber}에 다음 사용자들이 할당되었습니다: ${assignees.join(', ')}`);
+          } catch (error) {
+            console.log(`할당 중 오류 발생: ${error.message}`);
+          } 

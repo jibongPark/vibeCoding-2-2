@@ -1,0 +1,109 @@
+name: Issue Auto Assigner
+
+on:
+  issues:
+    types: [opened, reopened]
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+    - name: Auto Assign Issue
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issueNumber = context.payload.issue.number;
+          const author = context.payload.issue.user.login;
+          const title = context.payload.issue.title.toLowerCase();
+          const body = context.payload.issue.body ? context.payload.issue.body.toLowerCase() : '';
+          const labels = context.payload.issue.labels.map(label => label.name);
+          
+          let assignees = [];
+          
+          // 팀 멤버 목록 (필요시 수정)
+          const teamMembers = {
+            backend: [
+              // 'backend-dev-1',
+              // 'backend-dev-2'
+            ],
+            frontend: [
+              // 'frontend-dev-1',
+              // 'frontend-dev-2'
+            ],
+            fullstack: [
+              // 'fullstack-dev-1'
+            ]
+          };
+          
+          // 이슈 작성자를 기본 할당자로 추가
+          assignees.push(author);
+          
+          // 라벨 기반 할당
+          if (labels.includes('backend') || title.includes('api') || title.includes('backend')) {
+            const backendDevs = teamMembers.backend.filter(dev => dev !== author);
+            if (backendDevs.length > 0) {
+              assignees.push(backendDevs[0]);
+            }
+          }
+          
+          if (labels.includes('frontend') || title.includes('ui') || title.includes('frontend')) {
+            const frontendDevs = teamMembers.frontend.filter(dev => dev !== author);
+            if (frontendDevs.length > 0) {
+              assignees.push(frontendDevs[0]);
+            }
+          }
+          
+          // 우선순위가 높은 이슈의 경우 추가 할당자 지정
+          if (labels.includes('priority:high') || labels.includes('bug')) {
+            const allDevs = [...teamMembers.backend, ...teamMembers.frontend, ...teamMembers.fullstack];
+            const availableDevs = allDevs.filter(dev => dev !== author && !assignees.includes(dev));
+            if (availableDevs.length > 0) {
+              assignees.push(availableDevs[0]);
+            }
+          }
+          
+          // 할당자가 이슈 작성자만 있는 경우, 랜덤 팀원 추가
+          if (assignees.length === 1) {
+            const allDevs = [...teamMembers.backend, ...teamMembers.frontend, ...teamMembers.fullstack];
+            const availableDevs = allDevs.filter(dev => dev !== author);
+            if (availableDevs.length > 0) {
+              const randomDev = availableDevs[Math.floor(Math.random() * availableDevs.length)];
+              assignees.push(randomDev);
+            }
+          }
+          
+          // 중복 제거
+          assignees = [...new Set(assignees)];
+          
+          // 할당 실행
+          if (assignees.length > 0) {
+            try {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                assignees: assignees
+              });
+              
+              console.log(`이슈 #${issueNumber}에 다음 사용자들이 할당되었습니다: ${assignees.join(', ')}`);
+            } catch (error) {
+              console.log(`할당 중 오류 발생: ${error.message}`);
+              
+              // 작성자만이라도 할당 시도
+              try {
+                await github.rest.issues.addAssignees({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  assignees: [author]
+                });
+                console.log(`이슈 #${issueNumber}에 작성자만 할당되었습니다: ${author}`);
+              } catch (fallbackError) {
+                console.log(`작성자 할당도 실패: ${fallbackError.message}`);
+              }
+            }
+          } 

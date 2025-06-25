@@ -1,0 +1,108 @@
+name: PR Auto Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  auto-review:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get Changed Files
+      id: changed-files
+      run: |
+        # PR에서 변경된 파일 목록 가져오기
+        git diff --name-only origin/${{ github.base_ref }}..HEAD > changed_files.txt
+        echo "files<<EOF" >> $GITHUB_OUTPUT
+        cat changed_files.txt >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Auto Code Review
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const prNumber = context.payload.pull_request.number;
+          const files = `${{ steps.changed-files.outputs.files }}`.split('\n').filter(f => f.trim());
+          
+          let reviewComments = [];
+          let generalComments = [];
+          
+          // 파일별 자동 리뷰 로직
+          for (const file of files) {
+            if (!file.trim()) continue;
+            
+            // Python 파일 체크
+            if (file.endsWith('.py')) {
+              generalComments.push(`📝 **${file}**: Python 파일이 수정되었습니다. 다음 사항을 확인해주세요:
+              - [ ] PEP 8 스타일 가이드 준수
+              - [ ] 타입 힌트 적용
+              - [ ] Docstring 작성`);
+            }
+            
+            // 테스트 파일 체크
+            if (file.includes('test_') || file.includes('/tests/')) {
+              generalComments.push(`🧪 **${file}**: 테스트 파일이 수정되었습니다.
+              - [ ] 테스트 케이스 커버리지 확인
+              - [ ] 엣지 케이스 테스트 포함`);
+            }
+            
+            // API 관련 파일 체크
+            if (file.includes('router') || file.includes('api')) {
+              generalComments.push(`🌐 **${file}**: API 관련 파일이 수정되었습니다.
+              - [ ] API 문서 업데이트 필요성 검토
+              - [ ] 에러 핸들링 확인
+              - [ ] 보안 검토 필요`);
+            }
+            
+            // 설정 파일 체크
+            if (file.includes('requirements.txt') || file.includes('.env')) {
+              generalComments.push(`⚙️ **${file}**: 설정 파일이 수정되었습니다.
+              - [ ] 새로운 의존성에 대한 보안 검토
+              - [ ] 버전 충돌 가능성 검토`);
+            }
+          }
+          
+          // 일반적인 체크리스트
+          generalComments.push(`## 🔍 자동 코드 리뷰 체크리스트
+          
+          ### 코드 품질
+          - [ ] 코드가 Clean Architecture 원칙을 따르고 있는가?
+          - [ ] SOLID 원칙이 적용되었는가?
+          - [ ] 함수와 클래스가 단일 책임을 갖고 있는가?
+          
+          ### 테스트
+          - [ ] 새로운 기능에 대한 테스트 코드가 작성되었는가?
+          - [ ] 기존 테스트가 여전히 통과하는가?
+          
+          ### 문서화
+          - [ ] 코드 변경사항이 문서에 반영되었는가?
+          - [ ] API 변경사항이 있다면 문서가 업데이트되었는가?
+          
+          ### 보안
+          - [ ] 보안 취약점이 없는가?
+          - [ ] 민감한 정보가 하드코딩되지 않았는가?`);
+          
+          // 리뷰 댓글 생성
+          const fullComment = generalComments.join('\n\n');
+          
+          try {
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              body: fullComment,
+              event: 'COMMENT'
+            });
+            
+            console.log(`PR #${prNumber}에 자동 코드 리뷰가 생성되었습니다.`);
+          } catch (error) {
+            console.log(`리뷰 생성 중 오류 발생: ${error.message}`);
+          } 

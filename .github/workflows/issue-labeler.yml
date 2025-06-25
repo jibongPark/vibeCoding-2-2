@@ -1,0 +1,105 @@
+name: Issue Auto Labeler
+
+on:
+  issues:
+    types: [opened, reopened, edited]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+    - name: Auto Label Issue
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issueNumber = context.payload.issue.number;
+          const title = context.payload.issue.title.toLowerCase();
+          const body = context.payload.issue.body ? context.payload.issue.body.toLowerCase() : '';
+          const labels = [];
+          
+          // 이슈 타입 기반 라벨링
+          if (title.includes('bug') || title.includes('버그') || title.includes('오류') || title.includes('error')) {
+            labels.push('bug');
+          } else if (title.includes('feature') || title.includes('기능') || title.includes('새로운')) {
+            labels.push('feature');
+          } else if (title.includes('enhancement') || title.includes('개선') || title.includes('향상')) {
+            labels.push('enhancement');
+          } else if (title.includes('question') || title.includes('질문') || title.includes('문의')) {
+            labels.push('question');
+          } else if (title.includes('documentation') || title.includes('문서') || title.includes('docs')) {
+            labels.push('documentation');
+          }
+          
+          // 기술 스택 기반 라벨링
+          if (title.includes('api') || title.includes('backend') || title.includes('fastapi') || 
+              body.includes('backend') || body.includes('api')) {
+            labels.push('backend');
+          }
+          
+          if (title.includes('frontend') || title.includes('ui') || title.includes('streamlit') ||
+              body.includes('frontend') || body.includes('streamlit')) {
+            labels.push('frontend');
+          }
+          
+          if (title.includes('test') || title.includes('테스트') || 
+              body.includes('test') || body.includes('테스트')) {
+            labels.push('test');
+          }
+          
+          if (title.includes('agent') || title.includes('langgraph') || title.includes('llm') ||
+              body.includes('agent') || body.includes('langgraph')) {
+            labels.push('agent');
+          }
+          
+          // 우선순위 결정
+          if (title.includes('urgent') || title.includes('critical') || title.includes('긴급') ||
+              title.includes('크리티컬') || labels.includes('bug')) {
+            labels.push('priority:high');
+          } else if (title.includes('minor') || title.includes('사소한') || title.includes('개선')) {
+            labels.push('priority:low');
+          } else {
+            labels.push('priority:medium');
+          }
+          
+          // 도움 요청 라벨
+          if (title.includes('help') || title.includes('도움') || title.includes('support') ||
+              body.includes('help wanted') || body.includes('도움이 필요')) {
+            labels.push('help wanted');
+          }
+          
+          // 상태 라벨 (새 이슈는 기본적으로 대기 상태)
+          labels.push('status:pending');
+          
+          // Task ID가 있는 경우
+          if (title.includes('task-') || title.includes('[task-')) {
+            labels.push('task');
+          }
+          
+          // 중복 제거
+          const uniqueLabels = [...new Set(labels)];
+          
+          if (uniqueLabels.length > 0) {
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: uniqueLabels
+              });
+              
+              console.log(`이슈 #${issueNumber}에 다음 라벨들이 추가되었습니다: ${uniqueLabels.join(', ')}`);
+            } catch (error) {
+              console.log(`라벨 추가 중 오류 발생: ${error.message}`);
+            }
+          }
+          
+          // 특별한 경우 마일스톤 설정 (옵션)
+          if (labels.includes('priority:high') || labels.includes('bug')) {
+            // 긴급 이슈의 경우 특별 마일스톤에 추가 가능
+            // 필요시 마일스톤 API 호출 추가
+            console.log(`우선순위가 높은 이슈 #${issueNumber} 감지됨`);
+          } 

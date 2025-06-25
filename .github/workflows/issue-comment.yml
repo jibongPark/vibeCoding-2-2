@@ -1,0 +1,78 @@
+name: Issue Auto Comment
+
+on:
+  issues:
+    types: [opened, reopened]
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+    - name: Add Issue Comment
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issueNumber = context.payload.issue.number;
+          const author = context.payload.issue.user.login;
+          const title = context.payload.issue.title;
+          const labels = context.payload.issue.labels.map(label => label.name);
+          
+          let comment = `## 🎯 이슈 접수 알림
+
+          안녕하세요 @${author}님! 이슈를 등록해주셔서 감사합니다.
+
+          **이슈 정보:**
+          - 제목: ${title}
+          - 작성자: @${author}
+          - 이슈 번호: #${issueNumber}`;
+          
+          if (labels.length > 0) {
+            comment += `\n- 라벨: ${labels.join(', ')}`;
+          }
+          
+          comment += `
+
+          **처리 프로세스:**
+          1. 이슈 분류 및 라벨링
+          2. 담당자 할당
+          3. 우선순위 설정
+          4. 개발 진행
+          5. 완료 후 이슈 종료
+
+          **예상 처리 시간:**`;
+          
+          // 라벨에 따른 예상 처리 시간
+          if (labels.includes('priority:high') || labels.includes('bug')) {
+            comment += '\n- 🔥 높은 우선순위: 1-2일 내 처리';
+          } else if (labels.includes('priority:medium') || labels.includes('feature')) {
+            comment += '\n- ⚡ 중간 우선순위: 3-5일 내 처리';
+          } else if (labels.includes('priority:low') || labels.includes('enhancement')) {
+            comment += '\n- 📝 낮은 우선순위: 1-2주 내 처리';
+          } else {
+            comment += '\n- 📋 분류 후 안내 예정';
+          }
+          
+          comment += `
+
+          **추가 정보가 필요한 경우:**
+          - 재현 단계가 더 자세히 필요한 경우 문의드릴 수 있습니다
+          - 스크린샷이나 로그가 있다면 추가 첨부 부탁드립니다
+
+          진행 상황은 이 이슈를 통해 계속 업데이트 드리겠습니다! 💪`;
+
+          try {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: comment
+            });
+            
+            console.log(`이슈 #${issueNumber}에 자동 댓글이 추가되었습니다.`);
+          } catch (error) {
+            console.log(`댓글 추가 중 오류 발생: ${error.message}`);
+          } 
